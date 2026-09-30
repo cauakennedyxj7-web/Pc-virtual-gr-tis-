@@ -1,167 +1,24 @@
-# ==========================================================
-# Virtual PC - Hyper-V
-# Execute o PowerShell como Administrador
-# ==========================================================
+# Nome da VM
+$VMName = "MinhaVM"
 
-$VMName = "VirtualPC"
-$VMPath = "C:\VirtualPC"
-$VHDPath = "$VMPath\$VMName.vhdx"
-
-# CONFIGURAÇÃO
-$RAM = 4GB
-$CPU = 4
-$DiskSize = 80GB
-
-# Coloque sua ISO aqui
-$ISOPath = "C:\VirtualPC\Windows.iso"
-
-Write-Host "======================================" -ForegroundColor Cyan
-Write-Host "       VIRTUAL PC - HYPER-V" -ForegroundColor Cyan
-Write-Host "======================================" -ForegroundColor Cyan
-
-# Verificar administrador
-$principal = New-Object Security.Principal.WindowsPrincipal(
-    [Security.Principal.WindowsIdentity]::GetCurrent()
-)
-
-if (-not $principal.IsInRole(
-    [Security.Principal.WindowsBuiltInRole]::Administrator
-)) {
-    Write-Host "Execute este arquivo como Administrador." -ForegroundColor Red
-    exit
-}
-
-# Habilitar Hyper-V
-Write-Host "[1/6] Verificando Hyper-V..."
-
-$feature = Get-WindowsOptionalFeature `
-    -Online `
-    -FeatureName Microsoft-Hyper-V-All
-
-if ($feature.State -ne "Enabled") {
-
-    Write-Host "Habilitando Hyper-V..." -ForegroundColor Yellow
-
-    Enable-WindowsOptionalFeature `
-        -Online `
-        -FeatureName Microsoft-Hyper-V-All `
-        -All `
-        -NoRestart
-
-    Write-Host ""
-    Write-Host "Hyper-V habilitado." -ForegroundColor Green
-    Write-Host "Reinicie o computador e execute o script novamente."
-
-    $resposta = Read-Host "Reiniciar agora? (S/N)"
-
-    if ($resposta -match "^[Ss]$") {
-        Restart-Computer
-    }
-
-    exit
-}
-
-# Criar pasta
-Write-Host "[2/6] Criando pasta da VM..."
-
-New-Item `
-    -ItemType Directory `
-    -Path $VMPath `
-    -Force | Out-Null
-
-# Verificar ISO
-Write-Host "[3/6] Verificando ISO..."
-
-if (-not (Test-Path $ISOPath)) {
-
-    Write-Host ""
-    Write-Host "ISO não encontrada!" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Coloque a ISO do Windows em:"
-    Write-Host $ISOPath -ForegroundColor Yellow
-    Write-Host ""
-
-    exit
-}
-
-# Verificar VM existente
-if (Get-VM -Name $VMName -ErrorAction SilentlyContinue) {
-
-    Write-Host "A VM '$VMName' já existe." -ForegroundColor Yellow
-    exit
-}
-
-# Criar switch de rede
-Write-Host "[4/6] Configurando rede..."
-
-$SwitchName = "VirtualPC-Network"
-
-if (-not (Get-VMSwitch -Name $SwitchName -ErrorAction SilentlyContinue)) {
-
-    New-VMSwitch `
-        -Name $SwitchName `
-        -SwitchType Internal | Out-Null
-}
-
-# Criar disco
-Write-Host "[5/6] Criando disco virtual..."
-
-New-VHD `
-    -Path $VHDPath `
-    -SizeBytes $DiskSize `
-    -Dynamic | Out-Null
-
-# Criar VM
-Write-Host "[6/6] Criando máquina virtual..."
-
-New-VM `
-    -Name $VMName `
+# Criar VM com 4 GB de RAM
+New-VM -Name $VMName `
     -Generation 2 `
-    -MemoryStartupBytes $RAM `
-    -VHDPath $VHDPath `
-    -Path $VMPath `
-    -SwitchName $SwitchName | Out-Null
+    -MemoryStartupBytes 4GB `
+    -NewVHDPath "C:\VMs\MinhaVM.vhdx" `
+    -NewVHDSizeBytes 80GB `
+    -SwitchName "Default Switch"
 
-# CPU
-Set-VMProcessor `
-    -VMName $VMName `
-    -Count $CPU
+# Configurar processador
+Set-VMProcessor -VMName $VMName -Count 4
 
-# Memória
-Set-VMMemory `
-    -VMName $VMName `
+# Desativar memória dinâmica
+Set-VMMemory -VMName $VMName `
     -DynamicMemoryEnabled $false
 
-# ISO
-Set-VMDvdDrive `
-    -VMName $VMName `
-    -Path $ISOPath
+# Montar a ISO do Windows
+Set-VMDvdDrive -VMName $VMName `
+    -Path "C:\ISO\Windows.iso"
 
-# Secure Boot
-Set-VMFirmware `
-    -VMName $VMName `
-    -EnableSecureBoot On
-
-# Colocar DVD primeiro no boot
-$DVD = Get-VMDvdDrive -VMName $VMName
-
-Set-VMFirmware `
-    -VMName $VMName `
-    -FirstBootDevice $DVD
-
-Write-Host ""
-Write-Host "======================================" -ForegroundColor Green
-Write-Host "       VM CRIADA COM SUCESSO!" -ForegroundColor Green
-Write-Host "======================================" -ForegroundColor Green
-Write-Host ""
-Write-Host "Nome:  $VMName"
-Write-Host "RAM:   4 GB"
-Write-Host "CPU:   4 núcleos"
-Write-Host "DISCO: 80 GB"
-Write-Host ""
-
-# Iniciar
+# Iniciar a VM
 Start-VM -Name $VMName
-
-Write-Host "A VM foi iniciada."
-Write-Host "Abra o Hyper-V Manager para instalar o Windows."
